@@ -3,8 +3,9 @@ using System.Management.Automation;
 using System.Management.Automation.Subsystem;
 using System.Management.Automation.Subsystem.Feedback;
 using System.Management.Automation.Subsystem.Prediction;
+using System.Management.Automation.Language;
 
-namespace Microsoft.PowerShell.FeedbackProvider;
+namespace SampleFeedbackProvider;
 
 public sealed class SampleFeedbackProvider : IFeedbackProvider, ICommandPredictor
 {
@@ -24,63 +25,67 @@ public sealed class SampleFeedbackProvider : IFeedbackProvider, ICommandPredicto
 
     public Guid Id => _guid;
 
-    public string Name => "cmd-not-found";
+    public string Name => "sample-feedback-provider";
 
-    public string Description => "The built-in feedback/prediction source for the Linux command utility.";
+    public string Description => "This is a simple feedback provider to demonstrate the feedback subsystem.";
 
     #region IFeedbackProvider
 
-    private static string? GetUtilityPath()
-    {
-        string cmd_not_found = "/usr/lib/command-not-found";
-        bool exist = IsFileExecutable(cmd_not_found);
-
-        if (!exist)
-        {
-            cmd_not_found = "/usr/share/command-not-found/command-not-found";
-            exist = IsFileExecutable(cmd_not_found);
-        }
-
-        return exist ? cmd_not_found : null;
-
-        static bool IsFileExecutable(string path)
-        {
-            var file = new FileInfo(path);
-            return file.Exists && file.UnixFileMode.HasFlag(UnixFileMode.OtherExecute);
-        }
-    }
-
     public FeedbackItem? GetFeedback(FeedbackContext context, CancellationToken token)
     {
-        // if (Platform.IsWindows)
-        // {
-        //     return null;
-        // }
+       
+        var cmdlet = context.Trigger;
 
-        var test = context.Trigger;
-        // if(test is null)
-        // {
-        //     return null;
-        // }
-        if (test == FeedbackTrigger.Comment)
+        
+
+        var target = context.Trigger;
+
+        var commandLine = context.CommandLine;
+        
+        // check if commandline is empty
+        if (string.IsNullOrEmpty(commandLine))
         {
-            string header = "This is the header";
-            List<string>? actions = new List<string>();
-            actions.Add("Action1");
-            actions.Add("Action2");
-            string footer = "This is the footer";
-            return new FeedbackItem(header, actions, footer, FeedbackDisplayLayout.Portrait);
+            return null;
         }
 
-        if (test == FeedbackTrigger.Success)
+        PowerShell powershell = PowerShell.Create().AddCommand("Get-Alias").AddParameter("Name", commandLine);
+
+        var results = powershell.Invoke();
+
+        if (target == FeedbackTrigger.Success && results != null)
         {
-            string header = "This is the success header";
+            string header = "This is an aliased command in PowerShell, this is the fully qualified command";
             List<string>? actions = new List<string>();
-            actions.Add("Success1");
-            actions.Add("Success2");
+            //actions.Add((string)result.Name);
+            foreach (var result in results) {
+                actions.Add(result.Members["DisplayName"].Value.ToString());
+            }
+            
             return new FeedbackItem(header, actions);
         }
 
+        // if (target == FeedbackTrigger.Error)
+        // {
+        //     string header = "This is the error header";
+        //     List<string>? actions = new List<string>();
+        //     actions.Add("Error1");
+        //     actions.Add("Error2");
+        //     return new FeedbackItem(header, actions);
+        // }
+
+        // Check that the commandline is an aliased powershell command
+        // if (target == FeedbackTrigger.Comment)
+        // {
+        //     string header = "This is the header";
+        //     List<string>? actions = new List<string>();
+        //     actions.Add("Action1");
+        //     actions.Add((string)commandLine);
+        //     actions.Add()
+        //     //actions.Add(result);
+        //     string footer = "This is the footer";
+        //     return new FeedbackItem(header, actions, footer, FeedbackDisplayLayout.Portrait);
+        // }
+        
 
         // // Use the different trigger 'CommandNotFound', so 'LastError' won't be null.
         // var target = (string)context.LastError!.TargetObject;
