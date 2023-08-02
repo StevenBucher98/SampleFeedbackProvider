@@ -10,12 +10,13 @@ namespace SampleFeedbackProvider;
 public sealed class SampleFeedbackProvider : IFeedbackProvider, ICommandPredictor
 {
     private readonly Guid _guid;
+
+    // this is the list of actions from the feedback provider that will be sent to the predictor 
     private List<string>? _candidates;
     
     // implement the interface member to get trigger to work
     public FeedbackTrigger Trigger => FeedbackTrigger.All;
     
-
     internal SampleFeedbackProvider(string guid)
     {
         _guid = new Guid(guid);
@@ -34,12 +35,7 @@ public sealed class SampleFeedbackProvider : IFeedbackProvider, ICommandPredicto
     public FeedbackItem? GetFeedback(FeedbackContext context, CancellationToken token)
     {
        
-        var cmdlet = context.Trigger;
-
-        
-
         var target = context.Trigger;
-
         var commandLine = context.CommandLine;
         
         // check if commandline is empty
@@ -52,17 +48,37 @@ public sealed class SampleFeedbackProvider : IFeedbackProvider, ICommandPredicto
 
         var results = powershell.Invoke();
 
-        if (target == FeedbackTrigger.Success && results != null)
+
+        if (target == FeedbackTrigger.Success)
         {
             string header = "This is an aliased command in PowerShell, this is the fully qualified command";
             List<string>? actions = new List<string>();
             //actions.Add((string)result.Name);
-            foreach (var result in results) {
-                actions.Add(result.Members["DisplayName"].Value.ToString());
+
+            if (results.Count > 0)
+            {
+                // foreach(PSObject result in results){
+                //     actions.Add(result.Members["ReferencedCommand"].Value.ToString());
+
+                // }
+                actions.Add(results[0].Members["ReferencedCommand"].Name.ToString());
+                return new FeedbackItem(header, actions);
             }
+            else
+            {
+                actions.Add("No alias found");
+                return new FeedbackItem(header, actions);
+
+            }
+            // foreach (var result in results) {
+            //     actions.Add(result.Members["DisplayName"].Value.ToString());
+            // }
             
-            return new FeedbackItem(header, actions);
+            _candidates = actions;
+            return null;
         }
+
+        
 
         // if (target == FeedbackTrigger.Error)
         // {
@@ -73,18 +89,17 @@ public sealed class SampleFeedbackProvider : IFeedbackProvider, ICommandPredicto
         //     return new FeedbackItem(header, actions);
         // }
 
-        // Check that the commandline is an aliased powershell command
-        // if (target == FeedbackTrigger.Comment)
-        // {
-        //     string header = "This is the header";
-        //     List<string>? actions = new List<string>();
-        //     actions.Add("Action1");
-        //     actions.Add((string)commandLine);
-        //     actions.Add()
-        //     //actions.Add(result);
-        //     string footer = "This is the footer";
-        //     return new FeedbackItem(header, actions, footer, FeedbackDisplayLayout.Portrait);
-        // }
+        if (target == FeedbackTrigger.Comment)
+        {
+            string header = "This is the header";
+            List<string>? actions = new List<string>();
+            actions.Add("Action1");
+            actions.Add((string)commandLine);
+            //actions.Add(result);
+            string footer = "This is the footer";
+            _candidates = actions;
+            return new FeedbackItem(header, actions, footer, FeedbackDisplayLayout.Portrait);
+        }
         
 
         // // Use the different trigger 'CommandNotFound', so 'LastError' won't be null.
